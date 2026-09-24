@@ -57,6 +57,19 @@ backend/src/routes, controllers, services, models, repositories, middlewares, co
 - SupplyCategory: constants/SupplyCategory、types/SupplyCategory、constructors、logTemplates、errorMessages、筛选器、展示组件/控制器均有引用。
 - DispatchStatus: constants/DispatchStatus、types/DispatchStatus、constructors、logTemplates、errorMessages、筛选器、展示组件/控制器均有引用。
 - ShelterStatus: constants/ShelterStatus、types/ShelterStatus、constructors、logTemplates、errorMessages、筛选器、展示组件/控制器均有引用。
+- HandoverStatus（值班交接单：PENDING 待领取 / CLAIMED 处理中 / CLOSED 已关闭）：
+  - 前端：`constants/HandoverStatus.ts`、`constants/statusText.ts`、`types/HandoverSheet.ts`、`constructors/ShiftHandoverConstructor.ts`、`hooks/useShiftHandover.ts`、`api/ShiftHandover.ts`、`stores/ShiftHandoverStore.ts`、`components/warehouse/HandoverCard.vue`、`components/warehouse/HandoverPanel.vue`。
+  - 后端：`constants/HandoverStatus.java`、`models/HandoverSheet.java`、`repositories/ShiftHandoverRepository.java`、`services/ShiftHandoverService.java`、`constructors/ShiftHandoverDtoFactory.java`、`controllers/ShiftHandoverController.java`、`database/init.sql`。
+  - 另有 `HandoverItemType`（INBOUND 待入库 / EXPIRE 临期批次 / EXCEPTION 异常库存 / OTHER 其他）与 `HandoverItemStatus`（PENDING / DONE），同样贯穿类型、构造器、错误码、日志模板与展示组件。
+- 交接业务错误码：`HANDOVER_SHIFT_CONFLICT`（同仓库重叠时段已有有效交接单）、`HANDOVER_NOT_PENDING`（已领取/已关闭不能再领取）、`HANDOVER_ITEM_PENDING`（仍有事项未处理不能关闭）、`HANDOVER_NOT_FOUND`。前端见 `constants/errorCodes.ts`，后端见 `constants/ErrorCodes.java`，由 `ErrorHandlerMiddleware` 统一翻译成 HTTP 409/400/404。
+
+## 仓库值班交接规则
+
+- 在「仓库库存」页按仓库新建交接单：选择当班负责人、交接时段，并逐条登记事项（类型/内容）与接手人。
+- 同一仓库的时段按半开区间 `[start, end)` 判定，重叠且对方未关闭（CLOSED）时拒绝创建，返回 `HANDOVER_SHIFT_CONFLICT` 并附冲突单号/时段；已关闭的历史单不参与冲突，可随时回看。
+- 新值班员输入姓名后领取（仅 PENDING 可领取，重复领取返回 `HANDOVER_NOT_PENDING`），领取后逐项登记处理结果；全部事项为 DONE 才能关闭（否则返回 `HANDOVER_ITEM_PENDING`）。
+- 任何冲突/状态错误都只返回错误提示，原交接单与库存数据均不改动。
+- 接口：`GET/POST /api/shift-handover`、`POST /api/shift-handover/{id}/claim`、`POST /api/shift-handover/{id}/items/{itemId}/complete`、`POST /api/shift-handover/{id}/close`；后端离线时前端使用 localStorage 持久化（`mocks/handoverLocalEngine.ts`），重开页面仍可按仓库回看。
 
 ## 为什么会牵一发动全身
 
